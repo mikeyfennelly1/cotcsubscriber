@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: b3proj
+  nats:
+    port: 4222
+    topic-name: desktop-sysinfo
+  datasource:
+    url: jdbc:postgresql://localhost:5432/db
+    username: user
+    password: pass
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+logging:
+  level:
+    root: INFO
