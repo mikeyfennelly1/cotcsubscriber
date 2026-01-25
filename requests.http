@@ -1,0 +1,11 @@
+### Get all unique MAC addresses
+GET http://localhost:8080/api/sysinfo/devices
+
+### Get metadata for a specific MAC address
+# @name get_devices_by_mac
+# @ref Get all unique MAC addresses
+# @prompt MAC_ADDR Please replace with a valid MAC address from the previous response.
+GET http://localhost:8080/api/sysinfo/devices?mac_addr={{MAC_ADDR}}
+
+### (Expected to fail) Get metadata for a non-existent MAC address
+GET http://localhost:8080/api/sysinfo/devices?mac_addr=00:00:00:00:00:00
