@@ -5,9 +5,9 @@ spring:
     port: 4222
     topic-name: desktop-sysinfo
   datasource:
-    url: jdbc:postgresql://localhost:5432/db
-    username: user
-    password: pass
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}
+    username: ${POSTGRES_USER:user}
+    password: ${POSTGRES_PASSWORD:password}
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
