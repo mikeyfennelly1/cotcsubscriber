@@ -1,4 +1,4 @@
-package org.example.model;
+package org.example.consumer.model.device;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
