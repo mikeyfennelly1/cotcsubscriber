@@ -28,7 +28,8 @@ public class SubscriptionController {
 
     @GetMapping("")
     public List<String> getActiveCategorySubscriptions() {
-        return subscriptionManager.getActiveSubscriptions();
+        logger.debug("GET /api/consumer/subscriptions - fetching active subscriptions");
+        return subscriptionFactory.getActiveSubscriptions();
     }
 
     @PostMapping("")
