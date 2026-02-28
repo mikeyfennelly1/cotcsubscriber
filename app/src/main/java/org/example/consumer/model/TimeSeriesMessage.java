@@ -5,13 +5,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class DataSource {
-    @JsonProperty("source_id")
-    private String sourceType;
+public class TimeSeriesMessage {
 
-    @JsonProperty("mac_address")
-    private String macAddress;
+
+    @JsonProperty("additional_properties")
+    private Map<String, String> additionalProperties;
 }
