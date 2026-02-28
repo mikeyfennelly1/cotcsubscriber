@@ -1,12 +1,12 @@
 package org.example.consumer.controller;
 
-import org.example.consumer.model.SourceCategory;
-import org.example.consumer.subscriber.SubscriptionManager;
+import org.example.consumer.subscriber.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 import java.util.Map;
