@@ -21,9 +21,9 @@ public class SubscriptionController {
 
     @Autowired
     public SubscriptionController(
-            SubscriptionManager subscriptionManager
+            SubscriptionFactory subscriptionFactory
     ) {
-        this.subscriptionManager = subscriptionManager;
+        this.subscriptionFactory = subscriptionFactory;
     }
 
     @GetMapping("")
