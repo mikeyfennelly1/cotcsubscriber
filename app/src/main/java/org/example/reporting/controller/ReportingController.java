@@ -9,12 +9,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/reporting")
 public class ReportingController {
 
-    private final TimeseriesRepository sysinfoMessageRepository;
+    private final TimeseriesRepository timeseriesRepository;
 
     @Autowired
     public ReportingController(
-            TimeseriesRepository sysinfoMessageRepository
+            TimeseriesRepository timeseriesRepository
     ) {
-        this.sysinfoMessageRepository = sysinfoMessageRepository;
+        this.timeseriesRepository = timeseriesRepository;
     }
 }
