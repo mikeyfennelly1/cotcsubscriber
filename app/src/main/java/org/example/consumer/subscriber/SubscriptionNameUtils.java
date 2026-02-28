@@ -1,25 +1,25 @@
 package org.example.consumer.subscriber;
 
+import org.springframework.stereotype.Component;
+
 import java.util.List;
 
+@Component
 class SubscriptionNameUtils {
-    public Builder builder(String rootName) {
-        return new Builder(rootName);
+    public NameBuilder builder(String rootName) {
+        return new NameBuilder(rootName);
     }
 
-    static class Builder {
-        private static StringBuilder fullName;
+    static class NameBuilder {
+        private final StringBuilder fullName;
 
-        private Builder(String rootName) {
-            fullName.append(rootName);
+        private NameBuilder(String rootName) {
+            this.fullName = new StringBuilder().append(rootName);
         }
 
-        public void addName(String name) throws IllegalArgumentException {
-            if (isValidSubjectFormat(name)) {
-                fullName.append(".").append(name);
-            } else {
-                throw new IllegalArgumentException("invalid subject format: " + name);
-            }
+        public void addName(String name) throws InvalidSubscriptionTreePathFormatException {
+            InvalidSubscriptionTreePathFormatException.validate(name);
+            fullName.append(".").append(name);
         }
 
         public String build() {
@@ -28,29 +28,18 @@ class SubscriptionNameUtils {
     }
 
     /**
-     * Splits a subject name by full stop into an ordered list of its tokens.
+     * Splits a subject name by full stop into an ordered sequence of its tokens.
      * e.g. "device.sysinfo" → ["device", "sysinfo"], "device" → ["device"]
      *
-     * @throws IllegalArgumentException if the subject is not a valid format.
+     * @return an unmodifiable, order-preserving sequence of the subject's tokens.
+     * @throws InvalidSubscriptionTreePathFormatException if the subject is not a valid format.
      */
-    static List<String> splitSubject(String subject) {
-        if (!isValidSubjectFormat(subject)) {
-            throw new IllegalArgumentException("invalid subject format: " + subject);
+    public static List<String> listOfSubjectsFromTreePath(String subject) throws InvalidSubscriptionTreePathFormatException {
+        InvalidSubscriptionTreePathFormatException.validate(subject);
+        if (subject.contains(".")) {
+            return List.of(subject.split("\\."));
+        } else {
+            return List.of(subject);
         }
-        return List.of(subject.split("\\."));
-    }
-
-    /**
-     * Returns true if the subject is a single non-empty token or a sequence of
-     * non-empty tokens separated by full stops, e.g. "device" or "device.sysinfo".
-     * Rejects null, blank strings, leading/trailing dots, and consecutive dots.
-     */
-    static boolean isValidSubjectFormat(String subject) {
-        if (subject == null || subject.isBlank()) return false;
-        String[] parts = subject.split("\\.", -1);
-        for (String part : parts) {
-            if (part.isEmpty()) return false;
-        }
-        return true;
     }
 }
