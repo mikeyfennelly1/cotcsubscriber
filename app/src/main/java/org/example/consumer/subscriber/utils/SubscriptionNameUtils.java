@@ -1,16 +1,17 @@
-package org.example.consumer.subscriber;
+package org.example.consumer.subscriber.utils;
 
+import org.example.consumer.subscriber.exception.InvalidSubscriptionTreePathFormatException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
-class SubscriptionNameUtils {
+public class SubscriptionNameUtils {
     public NameBuilder builder(String rootName) {
         return new NameBuilder(rootName);
     }
 
-    static class NameBuilder {
+    public static class NameBuilder {
         private final StringBuilder fullName;
 
         private NameBuilder(String rootName) {
