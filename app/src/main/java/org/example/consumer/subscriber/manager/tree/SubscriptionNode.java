@@ -1,12 +1,15 @@
-package org.example.consumer.subscriber;
+package org.example.consumer.subscriber.manager.tree;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import lombok.Getter;
+import lombok.Setter;
+import org.example.consumer.model.Subject;
 import org.example.consumer.model.TimeSeriesRecord;
 import org.example.consumer.model.dto.TimeSeriesMessageDTO;
 import org.example.consumer.repository.TimeseriesRepository;
+import org.example.consumer.subscriber.exception.TreePathNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +24,7 @@ public class SubscriptionNode {
 
     @Getter private final String name;
     @Getter final SubscriptionNode parent;
+    @Getter @Setter Subject subject;
     final Map<String, SubscriptionNode> children = new LinkedHashMap<>();
 
     SubscriptionNode(String name, SubscriptionNode parent) {
