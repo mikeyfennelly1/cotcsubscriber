@@ -1,7 +1,11 @@
 package org.example.consumer.subscriber;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.nats.client.Connection;
+import org.example.consumer.repository.TimeseriesRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -12,15 +16,23 @@ public class SubscriptionTree implements SubscriptionManager {
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionTree.class);
     private final Map<String, SubscriptionNode> treeRootChildren = new LinkedHashMap<>();
     private final SubscriptionNameUtils subscriptionNameUtils;
+    private final List<String> activeSubscriptionList = new ArrayList<String>();
+    private final Connection natsConnection;
+    private final ObjectMapper objectMapper;
+    private final TimeseriesRepository timeseriesRepository;
 
-    SubscriptionTree(SubscriptionNameUtils subscriptionNameUtils) {
+    @Autowired
+    SubscriptionTree(SubscriptionNameUtils subscriptionNameUtils, NatsConnectionSingleton natsConnectionSingleton, ObjectMapper objectMapper, TimeseriesRepository timeseriesRepository) {
         this.subscriptionNameUtils = subscriptionNameUtils;
+        this.natsConnection = natsConnectionSingleton.getConnection();
+        this.objectMapper = objectMapper;
+        this.timeseriesRepository = timeseriesRepository;
     }
 
-    @Override public void removeSubscription(String subscriptionName) {
+    @Override public void deleteSubscription(String subscriptionName) {
     }
 
-    @Override public void newSubscription(String name, String parentFullName) throws TreePathNotFoundException, InvalidSubscriptionTreePathFormatException, SubscriptionAlreadyExistsException {
+    @Override public void createSubscription(String name, String parentFullName) throws TreePathNotFoundException, InvalidSubscriptionTreePathFormatException, SubscriptionAlreadyExistsException {
         logger.debug("newSubscription - name='{}' parentFullName='{}'", name, parentFullName);
         if (parentFullName == null && !this.treeRootChildren.containsKey(name)) {
             newRoot(name);
@@ -31,7 +43,15 @@ public class SubscriptionTree implements SubscriptionManager {
             SubscriptionNode parentNode = findNodeFromPath(parentFullName);
 
             if (!parentNode.hasChild(name)) {
-                parentNode.addChild(name);
+                String newNodeFullName = parentFullName + "." + name;
+                SubscriptionNode child = parentNode.addChild(name);
+                child.init(newNodeFullName, natsConnection, objectMapper, timeseriesRepository);
+                if (parentFullName != null) {
+                    activeSubscriptionList.add(newNodeFullName);
+                } else {
+                    activeSubscriptionList.add(name);
+                }
+                logger.debug("newSubscription - added to active list: {}", activeSubscriptionList);
                 logger.debug("newSubscription - added child '{}' under parent '{}'", name, parentFullName);
             } else {
                 logger.debug("newSubscription - child '{}' under parent '{}' already exists, skipping", name, parentFullName);
@@ -40,20 +60,9 @@ public class SubscriptionTree implements SubscriptionManager {
         return;
     }
 
-    @Override public List<String> getActiveSubscriptions() {
-        logger.debug("getActiveSubscriptions - building subject list from {} root(s)", treeRootChildren.size());
-        List<String> subjects = new ArrayList<>();
-        for (SubscriptionNode root : treeRootChildren.values()) {
-            if (root.children.isEmpty()) {
-                subjects.add(root.getName());
-            } else {
-                for (String child : root.children.keySet()) {
-                    subjects.add(root.getName() + "." + child);
-                }
-            }
-        }
-        logger.debug("getActiveSubscriptions - returning {} subjects: {}", subjects.size(), subjects);
-        return List.copyOf(subjects);
+    @Override public List<String> readAllSubscriptions() {
+        logger.debug("getActiveSubscriptions - returning {} subscriptions", activeSubscriptionList.size());
+        return this.activeSubscriptionList;
     }
 
     SubscriptionNode findNodeFromPath(String nodeFullPath) throws InvalidSubscriptionTreePathFormatException, TreePathNotFoundException {
@@ -85,7 +94,9 @@ public class SubscriptionTree implements SubscriptionManager {
         if (rootNodeExists(name)) {
             logger.debug("newRoot - root node '{}' already exists", name);
         } else {
-            treeRootChildren.put(name, new SubscriptionNode(name, null));
+            SubscriptionNode root = new SubscriptionNode(name, null);
+            treeRootChildren.put(name, root);
+            root.init(name, natsConnection, objectMapper, timeseriesRepository);
             logger.debug("newRoot - added root node: '{}'", name);
         }
         return;
