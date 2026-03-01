@@ -13,14 +13,14 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/consumer/groups")
-public class GroupController {
+public class ConsumerController {
 
-    private static final Logger logger = LoggerFactory.getLogger(GroupController.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConsumerController.class);
 
     private final SubscriptionSubsystemFacade subscriptionSubsystemFacade;
 
     @Autowired
-    public GroupController(
+    public ConsumerController(
             SubscriptionSubsystemFacade subscriptionSubsystemFacade
     ) {
         this.subscriptionSubsystemFacade = subscriptionSubsystemFacade;
