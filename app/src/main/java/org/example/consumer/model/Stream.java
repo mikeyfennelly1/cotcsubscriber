@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import org.example.libb3project.dto.ProducerDTO;
 import org.example.libb3project.dto.StreamDTO;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +39,6 @@ public class Stream {
         List<ProducerDTO> producers = this.getProducers().stream()
                 .map(Producer::toDTO)
                 .toList();
-        return new StreamDTO(this.uuid, this.name, List.of(), producers);
+        return new StreamDTO(this.uuid, this.name, new ArrayList<>(), producers);
     }
 }

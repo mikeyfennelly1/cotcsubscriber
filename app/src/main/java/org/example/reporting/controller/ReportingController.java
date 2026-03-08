@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -48,20 +49,20 @@ public class ReportingController {
     }
 
     @GetMapping("/streams")
-    public ResponseEntity<List<StreamDTO>> getAllStreams() {
-        logger.debug("GET /api/reporting/streams - fetching all streams");
-        List<StreamDTO> streams = reportingService.getAllStreams();
-        logger.debug("GET /api/reporting/streams - returning {} stream(s)", streams.size());
-        logger.trace("GET /api/reporting/streams - payload: {}", streams);
-        return ResponseEntity.ok(streams);
-    }
-
-    @GetMapping("/streams/hierarchy")
-    public ResponseEntity<List<StreamDTO>> getStreamHierarchy() {
-        logger.debug("GET /api/reporting/streams/hierarchy - building stream hierarchy");
+    public ResponseEntity<?> getStreams(@RequestParam(required = false) String name) {
+        if (name != null) {
+            logger.debug("GET /api/reporting/streams?name={} - fetching stream by name", name);
+            return reportingService.getStreamByName(name)
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> {
+                        logger.debug("GET /api/reporting/streams?name={} - stream not found", name);
+                        return ResponseEntity.notFound().build();
+                    });
+        }
+        logger.debug("GET /api/reporting/streams - building stream hierarchy");
         List<StreamDTO> hierarchy = reportingService.getStreamHierarchy();
-        logger.debug("GET /api/reporting/streams/hierarchy - returning {} root stream(s)", hierarchy.size());
-        logger.trace("GET /api/reporting/streams/hierarchy - payload: {}", hierarchy);
+        logger.debug("GET /api/reporting/streams - returning {} root stream(s)", hierarchy.size());
+        logger.trace("GET /api/reporting/streams - payload: {}", hierarchy);
         return ResponseEntity.ok(hierarchy);
     }
 

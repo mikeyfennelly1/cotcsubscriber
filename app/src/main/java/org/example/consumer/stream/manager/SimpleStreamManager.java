@@ -122,9 +122,6 @@ class SimpleStreamManager implements StreamManager {
                 logger.debug("initDispatcher - stream '{}' received message {}", streamName, dto);
                 Instant readTime = Instant.ofEpochSecond(dto.getReadTime());
                 Producer producer = producerRepository.findByName(dto.getProducerName());
-                if (producer == null) {
-
-                }
 
                 for (Map.Entry<String, Double> entry : dto.getValues().entrySet()) {
                     TimeSeriesRecord record = TimeSeriesRecord.builder()

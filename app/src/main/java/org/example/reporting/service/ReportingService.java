@@ -1,8 +1,10 @@
 package org.example.reporting.service;
 
+import lombok.NonNull;
 import org.example.consumer.model.Producer;
 import org.example.consumer.model.Stream;
 import org.example.consumer.model.TimeSeriesRecord;
+import org.example.consumer.stream.utils.Translators;
 import org.example.libb3project.dto.ProducerDTO;
 import org.example.libb3project.dto.StreamDTO;
 import org.example.libb3project.dto.TimeSeriesRecordDTO;
@@ -26,7 +28,12 @@ public class ReportingService {
     private final TimeseriesRepository timeseriesRepository;
 
     @Autowired
-    public ReportingService(StreamRepository streamRepository, ProducerRepository producerRepository, TimeseriesRepository timeseriesRepository) {
+    public ReportingService(
+            StreamRepository streamRepository,
+            ProducerRepository producerRepository,
+            TimeseriesRepository timeseriesRepository,
+            Translators translators
+    ) {
         this.streamRepository = streamRepository;
         this.producerRepository = producerRepository;
         this.timeseriesRepository = timeseriesRepository;
@@ -45,39 +52,7 @@ public class ReportingService {
         logger.debug("getStreamHierarchy - querying repository");
         List<Stream> allStreams = streamRepository.findAll();
         logger.debug("getStreamHierarchy - building DTO map from {} stream(s)", allStreams.size());
-
-        // Build name -> StreamDTO map (children must be mutable for tree assembly)
-        Map<String, StreamDTO> dtoMap = new LinkedHashMap<>();
-        for (Stream stream : allStreams) {
-            List<ProducerDTO> producers = stream.getProducers().stream()
-                    .map(Producer::toDTO)
-                    .toList();
-            logger.trace("getStreamHierarchy - mapped stream '{}' with {} producer(s)", stream.getName(), producers.size());
-            dtoMap.put(stream.getName(), stream.toDTO());
-        }
-
-        // Attach each node to its parent; collect nodes with no parent as roots
-        List<StreamDTO> roots = new ArrayList<>();
-        for (Map.Entry<String, StreamDTO> entry : dtoMap.entrySet()) {
-            String name = entry.getKey();
-            StreamDTO dto = entry.getValue();
-            int lastDot = name.lastIndexOf('.');
-            if (lastDot == -1) {
-                logger.trace("getStreamHierarchy - '{}' is a root stream", name);
-                roots.add(dto);
-            } else {
-                String parentName = name.substring(0, lastDot);
-                StreamDTO parent = dtoMap.get(parentName);
-                if (parent != null) {
-                    logger.trace("getStreamHierarchy - attaching '{}' as child of '{}'", name, parentName);
-                    parent.getChildren().add(dto);
-                } else {
-                    logger.trace("getStreamHierarchy - parent '{}' not found for '{}', treating as root", parentName, name);
-                    roots.add(dto);
-                }
-            }
-        }
-
+        List<StreamDTO> roots = Translators.hierarchyFromStreams(allStreams);
         logger.debug("getStreamHierarchy - returning {} root stream(s)", roots.size());
         return roots;
     }
@@ -107,6 +82,11 @@ public class ReportingService {
                 .toList();
         logger.debug("getProducersByStreamId - returning {} producer(s) for streamId={}", producers.size(), streamId);
         return producers;
+    }
+
+    public Optional<StreamDTO> getStreamByName(String name) {
+        logger.debug("getStreamByName - querying for name='{}'", name);
+        return Optional.ofNullable(streamRepository.findByName(name)).map(Stream::toDTO);
     }
 
     public String getStreamNameById(UUID streamId) {
