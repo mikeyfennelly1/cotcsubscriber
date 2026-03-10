@@ -90,7 +90,7 @@ public class ReportingController {
             return emitter;
         }
 
-        AutoCloseable subscription = streamManager.subscribeToStream(streamName, bytes -> {
+        AutoCloseable subscription = streamManager.subscribeToStreamSSESink(streamName, bytes -> {
             try {
                 TimeSeriesMessageDTO msg = objectMapper.readValue(bytes, TimeSeriesMessageDTO.class);
                 Instant readTime = Instant.ofEpochSecond(msg.getReadTime());
@@ -98,7 +98,9 @@ public class ReportingController {
                         .map(e -> new TimeSeriesRecordDTO(null, e.getKey(), e.getValue().floatValue(), msg.getProducerName(), readTime))
                         .toList();
                 logger.trace("GET /api/reporting/streams/{} - pushing {} live record(s)", streamId, liveRecords.size());
-                emitter.send(SseEmitter.event().name("live").data(liveRecords, MediaType.APPLICATION_JSON));
+                synchronized (emitter) {
+                    emitter.send(SseEmitter.event().name("live").data(liveRecords, MediaType.APPLICATION_JSON));
+                }
             } catch (Exception e) {
                 logger.error("GET /api/reporting/streams/{} - error pushing live event: {}", streamId, e.getMessage());
             }
@@ -120,6 +122,23 @@ public class ReportingController {
 
         logger.debug("GET /api/reporting/streams/{} - SSE stream open, subscribed to NATS subject '{}'", streamId, streamName);
         return emitter;
+    }
+
+    @GetMapping("/producers")
+    public ResponseEntity<?> getProducers(@RequestParam(required = false) String name) {
+        if (name != null) {
+            logger.debug("GET /api/reporting/producers?name={} - fetching producer by name", name);
+            return reportingService.getProducerByName(name)
+                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .orElseGet(() -> {
+                        logger.debug("GET /api/reporting/producers?name={} - producer not found", name);
+                        return ResponseEntity.notFound().build();
+                    });
+        }
+        logger.debug("GET /api/reporting/producers - fetching all producers");
+        List<ProducerDTO> producers = reportingService.getAllProducers();
+        logger.debug("GET /api/reporting/producers - returning {} producer(s)", producers.size());
+        return ResponseEntity.ok(producers);
     }
 
     @GetMapping("/streams/{streamId}/producers")

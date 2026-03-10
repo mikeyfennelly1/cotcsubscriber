@@ -1,0 +1,110 @@
+package org.example.consumer.stream.manager;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.nats.client.Connection;
+import io.nats.client.Message;
+import io.nats.client.MessageHandler;
+import org.example.consumer.model.Producer;
+import org.example.consumer.model.TimeSeriesRecord;
+import org.example.consumer.repository.ProducerRepository;
+import org.example.consumer.repository.TimeseriesRepository;
+import org.example.libb3project.dto.TimeSeriesMessageDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
+class DefaultDispatchMessageHandler implements MessageHandler {
+    private static final Logger logger = LoggerFactory.getLogger(DefaultDispatchMessageHandler.class);
+    private static final String DLQ_SUBJECT_PREFIX = "_DLQ.";
+
+    private final ObjectMapper objectMapper;
+    private final TimeseriesRepository timeseriesRepository;
+    private final ProducerRepository producerRepository;
+    private final Connection natsConnection;
+
+    DefaultDispatchMessageHandler(
+            ObjectMapper objectMapper,
+            TimeseriesRepository timeseriesRepository,
+            ProducerRepository producerRepository,
+            NatsConnectionSingleton natsConnectionSingleton
+    ) {
+        this.objectMapper = objectMapper;
+        this.timeseriesRepository = timeseriesRepository;
+        this.producerRepository = producerRepository;
+        this.natsConnection = natsConnectionSingleton.getConnection();
+    }
+
+    @Override
+    public void onMessage(Message message) throws InterruptedException {
+        logger.debug("received message {}", message);
+        try {
+            TimeSeriesMessageDTO dto = readToDto(message);
+            Producer producer = getProducerByName(dto.getProducerName());
+            processDto(dto, producer);
+            ackMessage();
+        } catch (Exception e) {
+            logger.error("unrecoverable error while processing message");
+            sendToDeadLetterQueue(message);
+            ackMessage();
+        }
+    }
+
+    private void sendToDeadLetterQueue(Message message) {
+        String dlqSubject = DLQ_SUBJECT_PREFIX + message.getSubject();
+        logger.warn("sendToDeadLetterQueue - forwarding failed message to '{}'", dlqSubject);
+        try {
+            natsConnection.publish(dlqSubject, message.getData());
+        } catch (Exception e) {
+            logger.error("sendToDeadLetterQueue - failed to publish to DLQ subject '{}': {}", dlqSubject, e.getMessage());
+        }
+    }
+
+    private void ackMessage() {
+        // Core NATS (non-JetStream) subscriptions are fire-and-forget; no explicit ack is required.
+        logger.debug("ackMessage - message acknowledged");
+    }
+
+    private TimeSeriesMessageDTO readToDto(Message message) throws Exception {
+        TimeSeriesMessageDTO dto = null;
+        try {
+            dto = objectMapper.readValue(message.getData(), TimeSeriesMessageDTO.class);
+        } catch (IOException e) {
+            logger.debug("failed to read message (type={}): {}", e.getClass(), e.getMessage());
+        }
+        return dto;
+    }
+
+    private Producer getProducerByName(String name) throws Exception {
+        Producer producer = null;
+        try {
+            producer = producerRepository.findByName(name);
+        } catch (Exception e) {
+            logger.error("could not find producer with name={}", name);
+        }
+        if (producer == null) {
+            logger.error("read null producer from database for producer name={}", name);
+        }
+        return producer;
+    }
+
+    private void processDto(TimeSeriesMessageDTO dto, Producer producer) {
+        for (Map.Entry<String, Double> entry : dto.getValues().entrySet()) {
+            TimeSeriesRecord record = TimeSeriesRecord.builder()
+                    .key(entry.getKey())
+                    .value(entry.getValue().floatValue())
+                    .producer(producer)
+                    .readTime(Instant.ofEpochSecond(dto.getReadTime()))
+                    .id(UUID.randomUUID())
+                    .build();
+            processTimeSeriesRecord(record);
+        }
+    }
+
+    private void processTimeSeriesRecord(TimeSeriesRecord record) {
+        timeseriesRepository.save(record);
+    }
+}

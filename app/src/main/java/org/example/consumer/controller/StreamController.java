@@ -1,13 +1,15 @@
 package org.example.consumer.controller;
 
-import org.example.consumer.stream.StreamingSubsystemFacade;
 import org.example.consumer.stream.exception.InvalidSubscriptionTreePathFormatException;
-import org.example.consumer.stream.exception.SubscriptionAlreadyExistsException;
+import org.example.consumer.stream.exception.StreamAlreadyExistsException;
 import org.example.consumer.stream.exception.TreePathNotFoundException;
+import org.example.consumer.stream.manager.StreamManager;
+import org.example.consumer.stream.manager.StreamManagerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,14 +21,13 @@ import java.util.Map;
 public class StreamController {
 
     private static final Logger logger = LoggerFactory.getLogger(StreamController.class);
-
-    private final StreamingSubsystemFacade streamingSubsystemFacade;
+    private final StreamManager streamManager;
 
     @Autowired
     public StreamController(
-            StreamingSubsystemFacade streamingSubsystemFacade
+            StreamManagerFactory managerFactory
     ) {
-        this.streamingSubsystemFacade = streamingSubsystemFacade;
+        this.streamManager = managerFactory.getManager("simple");
     }
 
     @GetMapping("/health")
@@ -38,7 +39,7 @@ public class StreamController {
     @GetMapping("/streams")
     public List<String> getAllStreams() {
         logger.debug("GET /api/consumer/streams - fetching active subscriptions");
-        return streamingSubsystemFacade.getAllStreamNames();
+        return streamManager.getAllStreamNames();
     }
 
     @PostMapping("/streams")
@@ -52,17 +53,18 @@ public class StreamController {
             logger.debug("POST /api/consumer/streams - rejected: missing 'parent' field");
             return ResponseEntity.badRequest().body(Map.of("error", "Request body must include a 'parent' field (set to null to create a root node)."));
         }
-
+        String streamName = body.get("name");
+        String streamParentName = body.get("parent");
         try {
-            streamingSubsystemFacade.createStream(body.get("name"), body.get("parent"));
+            streamManager.createStream(streamName, streamParentName);
         } catch (InvalidSubscriptionTreePathFormatException e) {
             logger.debug("POST /api/consumer/streams - rejected: invalid path format - {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (TreePathNotFoundException e) {
             logger.debug("POST /api/consumer/streams - rejected: parent path not found - {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
-        } catch (SubscriptionAlreadyExistsException e) {
-            logger.debug("POST /api/consumer/streams - rejected: subscription already exists - {}", e.getMessage());
+        } catch (StreamAlreadyExistsException e) {
+            logger.debug("POST /api/consumer/streams - rejected: stream already exists - {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
         logger.debug("POST /api/consumer/streams - created subscription name='{}' parent='{}'", body.get("name"), body.get("parent"));
@@ -77,7 +79,7 @@ public class StreamController {
     public ResponseEntity<?> deleteStream(@RequestParam String name) {
         logger.debug("DELETE /api/consumer/streams - name='{}'", name);
         try {
-            streamingSubsystemFacade.removeStream(name);
+            streamManager.deleteStream(name);
         } catch (TreePathNotFoundException e) {
             logger.debug("DELETE /api/consumer/streams - rejected: stream not found - {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
@@ -86,11 +88,22 @@ public class StreamController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping(value = "/streams/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<?> subscribeToStreamEvents(@RequestParam String stream) {
+        logger.debug("GET /api/consumer/streams/events - stream='{}'", stream);
+        if (!streamManager.streamAlreadyExists(stream)) {
+            logger.debug("GET /api/consumer/streams/events - rejected: stream '{}' not found", stream);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Stream '" + stream + "' not found."));
+        }
+
+        return ResponseEntity.ok(flux);
+    }
+
     @GetMapping("/streams/children")
     public ResponseEntity<?> getChildStreams(@RequestParam String stream) {
         logger.debug("GET /api/consumer/streams/children - parent='{}'", stream);
         try {
-            List<String> childSubscriptions = streamingSubsystemFacade.getChildStreams(stream);
+            List<String> childSubscriptions = streamManager.getChildStreams(stream);
             return ResponseEntity.ok(childSubscriptions);
         } catch (InvalidSubscriptionTreePathFormatException e) {
             logger.debug("GET /api/consumer/streams/children - rejected: invalid path format - {}", e.getMessage());

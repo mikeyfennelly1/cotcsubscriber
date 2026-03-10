@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+vars:
+  GREETING: Hello, world!
+
+tasks:
+  default:
+    desc: Print a greeting message
+    cmds:
+      - echo "{{.GREETING}}"
+    silent: true
+
+  javadoc:
+    desc: Build Javadoc and open in browser
+    cmds:
+      - ./gradlew :app:javadoc
+      - xdg-open app/build/docs/javadoc/index.html
