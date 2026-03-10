@@ -12,11 +12,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/consumer/commands")
 public class DeviceCommandController {
-    private static final Logger log = LoggerFactor.getLogger(DeviceCommandController.class);
-    private final DeviceCommandService commandService;
+    private static final Logger logger = LoggerFactory.getLogger(DeviceCommandController.class);
+    private final DeviceCommandService deviceCommandService;
     @Autowired
-    public DeviceCommandController(DeviceCommandService commandService) {
-        this.commandService = commandService;
+    public DeviceCommandController(DeviceCommandService deviceCommandService) {
+        this.deviceCommandService = deviceCommandService;
     }
 
     @PostMapping("/")

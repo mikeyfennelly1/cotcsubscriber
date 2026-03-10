@@ -14,10 +14,10 @@ import java.io.IOException;
 
 @Configuration
 public class FirebaseConfiguration {
-    private static final Logger log = loggerFactory.getLogger(FirebaseConfiguration.class);
+    private static final Logger logger = LoggerFactory.getLogger(FirebaseConfiguration.class);
 
     @PostConstruct
-    void init() {
+    void init() throws IOException {
         if (FirebaseApp.getApps().isEmpty()) {
             logger.debug("Initializing Firebase app with default credentials");
             FirebaseOptions options = FirebaseOptions.builder()

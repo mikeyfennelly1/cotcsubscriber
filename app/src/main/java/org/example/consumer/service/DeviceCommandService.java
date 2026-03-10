@@ -10,7 +10,7 @@ import java.util.Map;
 
 @Service
 public class DeviceCommandService {
-    private static final Logger log = LoggerFactory.getLogger(DeviceCommandService.class);
+    private static final Logger logger = LoggerFactory.getLogger(DeviceCommandService.class);
     private final Firestore firestore;
 
     @Autowired
