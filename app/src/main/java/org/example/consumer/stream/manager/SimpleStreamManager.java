@@ -1,15 +1,14 @@
 package org.example.consumer.stream.manager;
 
 import io.nats.client.Connection;
-import io.nats.client.MessageHandler;
 import org.example.consumer.stream.exception.StreamAlreadyExistsException;
 import org.example.consumer.repository.StreamRepository;
 import org.example.consumer.stream.exception.InvalidStreamNameException;
 import org.example.consumer.stream.exception.StreamNotFoundException;
+import org.example.libb3project.dto.TimeSeriesRecordDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -32,26 +31,40 @@ import static org.example.consumer.stream.utils.SubscriptionNameUtils.isRootStre
 class SimpleStreamManager implements StreamManager {
     private static final Logger logger = LoggerFactory.getLogger(SimpleStreamManager.class);
     private final StreamRepository streamRepository;
-    private final DispatcherService dispatcherService;
-    private final Map<String, Flux<ServerSentEvent<String>>> streamMap = new HashMap<>();
+    private final Map<String, ManagedStream> managedStreams = new HashMap<>();
     private final Connection natsConnection;
-    private TransactionalStreamCache transactionalStreamCache = new TransactionalStreamCache();
+    private final DispatcherFactory dispatcherFactory;
 
     @Autowired
     SimpleStreamManager(
-            DispatcherService dispatcherService,
             StreamRepository streamRepository,
-            NatsConnectionSingleton natsConnSingleton
+            NatsConnectionSingleton natsConnSingleton,
+            DispatcherFactory dispatcherFactory
     ) {
-        this.dispatcherService = dispatcherService;
         this.streamRepository = streamRepository;
         this.natsConnection = natsConnSingleton.getConnection();
+        this.dispatcherFactory = dispatcherFactory;
     }
 
     @Override
     public void createStream(String name, String parent) throws InvalidStreamNameException, StreamNotFoundException, StreamAlreadyExistsException {
         logger.debug("createStream - name='{}'", name);
+        streamIsCreatable(name);
+        initAndManageStream(name);
+    }
 
+    private void initAndManageStream(String name) {
+        ManagedStream managedStream = ManagedStream.builder()
+                        .natsStreamName(name)
+                        .natsMessageHandler(
+                                dispatcherFactory.getMessageHandler("default")
+                        )
+                        .build();
+        managedStreams.put(name, managedStream);
+        streamRepository.newStream(name);
+    }
+
+    private void streamIsCreatable(String name) throws InvalidStreamNameException, StreamAlreadyExistsException, StreamNotFoundException {
         // validate that it is in the format '<stream_name>' or '<stream_name>.<child_stream_name>'
         InvalidStreamNameException.validate(name);
         if (streamAlreadyExists(name)) {
@@ -66,19 +79,12 @@ class SimpleStreamManager implements StreamManager {
                 throw new StreamNotFoundException(parentStreamName);
             }
         }
-
-        logger.debug("recording new stream name in database: name={}", name);
-        streamRepository.newStream(name);
-        logger.debug("initializing dispatcher for stream: {}", name);
-        transactionalStreamCache.initDispatcher(name, natsConnection);
-        logger.info("createStream - stream '{}' created successfully", name);
     }
 
     @Override
     public void restoreStream(String name, String parent) {
         // initialize flux stream
         // initialize dispatcher, pass flux stream to it so that it can write to that
-        this.transactionalStreamCache.initDispatcher(name, natsConnection);
     }
 
     @Override
@@ -119,25 +125,13 @@ class SimpleStreamManager implements StreamManager {
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> subscribeToStreamSSESink(String streamName) {
+    public Flux<TimeSeriesRecordDTO> getStreamSSESink(String streamName) {
         logger.debug("subscribeToStream - creating live NATS subscription for stream '{}'", streamName);
-        return this.transactionalStreamCache.getSSESinkForStream(streamName);
+        return this.managedStreams.get(streamName).getFlux();
     }
 
     @Override
     public boolean streamAlreadyExists(String streamName) {
-        return this.streamRepository.streamExists(streamName);
-    }
-
-    private class TransactionalStreamCache {
-        void initDispatcher(String streamName, Connection natsConnection) {
-            logger.debug("initDispatcher - initializing NATS dispatcher for stream '{}'", streamName);
-            MessageHandler handler = dispatcherService.newDispatcher("default", natsConnection);
-            logger.debug("initDispatcher - NATS dispatcher initialized for stream '{}'", streamName);
-        }
-
-        Flux<ServerSentEvent<String>> getSSESinkForStream(String streamName) {
-            throw new UnsupportedOperationException();
-        }
+        return this.managedStreams.containsKey(streamName);
     }
 }
