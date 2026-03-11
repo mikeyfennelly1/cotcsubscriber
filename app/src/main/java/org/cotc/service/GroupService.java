@@ -1,6 +1,10 @@
 package org.cotc.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.nats.client.Connection;
+import io.nats.client.Dispatcher;
 import jakarta.annotation.PostConstruct;
+import org.cotc.config.NatsConfiguration;
 import org.cotc.exception.GroupAlreadyExistsException;
 import org.cotc.exception.InvalidGroupNameException;
 import org.cotc.exception.GroupNotFoundException;
@@ -10,6 +14,7 @@ import org.cotc.model.Group;
 import org.cotc.repository.GroupRepository;
 import org.cotc.repository.TimeseriesRepository;
 import org.cotc.utils.GroupNameUtils;
+import org.cotc.utils.Translators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,23 +27,34 @@ import java.util.*;
 @Service
 public class GroupService {
     private static final Logger logger = LoggerFactory.getLogger(GroupService.class);
+    private static final String TIMESERIES_SUBJECT = "TIMESERIES";
     private final GroupRepository groupRepository;
     private final Set<String> groupNameCache = new HashSet<>();
     private final GroupNameUtils groupNameUtils;
     private final TimeseriesRepository timeseriesRepository;
+    private final Connection natsConnection;
+    private final ObjectMapper objectMapper;
+    private final Translators translators;
 
     @Autowired
     GroupService(
             GroupRepository groupRepository,
-            GroupNameUtils groupNameUtils, TimeseriesRepository timeseriesRepository) {
+            GroupNameUtils groupNameUtils,
+            TimeseriesRepository timeseriesRepository,
+            NatsConfiguration natsConfiguration,
+            ObjectMapper objectMapper, Translators translators) {
         this.groupRepository = groupRepository;
         this.groupNameUtils = groupNameUtils;
         this.timeseriesRepository = timeseriesRepository;
+        this.natsConnection = natsConfiguration.getConnection();
+        this.objectMapper = objectMapper;
+        this.translators = translators;
     }
 
     @PostConstruct
     private void restoreGroupCache() {
         // get all the groups, put them into the cache
+        this.groupNameCache.addAll(this.getAllGroupNames());
     }
 
     public Optional<GroupDTO> getGroupByName(String name) {
@@ -86,6 +102,17 @@ public class GroupService {
         return children;
     }
 
+    public List<GroupDTO> getAllGroups() {
+        logger.debug("getAllGroups - fetching all groups as DTOs");
+        return groupRepository.findAll().stream()
+                .map(Group::toDTO)
+                .toList();
+    }
+
+    public List<GroupDTO> getFullGroupHierarchy() {
+        return translators.hierarchyFromGroups(groupRepository.findAll());
+    }
+
     public boolean groupExists(String streamName) {
         // this is assumed to be a valid source of truth, as groups are
         // read from database every time application starts, and thereon
@@ -104,13 +131,32 @@ public class GroupService {
 
         Group group = new Group();
         group.setName(groupName);
+        group.setUuid(UUID.randomUUID());
+        group.setProducers(List.of());
         groupRepository.save(group);
         return group.toDTO();
     }
 
     public Flux<ServerSentEvent<TimeSeriesMessageDTO>> getGroupFlux(String groupName) throws GroupNotFoundException {
         if (!groupExists(groupName)) throw new GroupNotFoundException(groupName);
-        return null;
+        return Flux.create(sink -> {
+            Dispatcher dispatcher = natsConnection.createDispatcher(msg -> {
+                try {
+                    TimeSeriesMessageDTO dto = objectMapper.readValue(msg.getData(), TimeSeriesMessageDTO.class);
+                    sink.next(ServerSentEvent.builder(dto).build());
+                } catch (Exception e) {
+                    logger.error("getGroupFlux - failed to deserialize message: {}", e.getMessage());
+                }
+            });
+            dispatcher.subscribe(TIMESERIES_SUBJECT);
+            sink.onCancel(() -> {
+                try {
+                    natsConnection.closeDispatcher(dispatcher);
+                } catch (Exception e) {
+                    logger.error("getGroupFlux - failed to close dispatcher: {}", e.getMessage());
+                }
+            });
+        });
     }
 
 }
