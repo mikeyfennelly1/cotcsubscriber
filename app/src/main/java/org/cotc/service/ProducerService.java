@@ -62,4 +62,13 @@ public class ProducerService {
     public Producer getProducerByName(String name) {
         return producerRepository.findByName(name);
     }
+
+    public boolean deleteProducerByName(String name) {
+        logger.debug("deleteProducerByName - querying for name='{}'", name);
+        Producer producer = producerRepository.findByName(name);
+        if (producer == null) return false;
+        producerRepository.delete(producer);
+        logger.debug("deleteProducerByName - deleted producer name='{}'", name);
+        return true;
+    }
 }
