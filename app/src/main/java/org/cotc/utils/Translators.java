@@ -18,12 +18,12 @@ import java.util.Map;
 public class Translators {
     private static final Logger logger = LoggerFactory.getLogger(Translators.class);
 
-    public static @NonNull List<GroupDTO> hierarchyFromGroups(List<Group> allGroups) {
+    public @NonNull List<GroupDTO> hierarchyFromGroups(List<Group> allGroups) {
         Map<String, GroupDTO> dtoMap = groupNameToDtoMap(allGroups);
         return hierarchyFromDtoMap(dtoMap);
     }
 
-    private static @NonNull List<GroupDTO> hierarchyFromDtoMap(Map<String, GroupDTO> dtoMap) {
+    private @NonNull List<GroupDTO> hierarchyFromDtoMap(Map<String, GroupDTO> dtoMap) {
         // Attach each node to its parent; collect nodes with no parent as roots
         List<GroupDTO> roots = new ArrayList<>();
         for (Map.Entry<String, GroupDTO> entry : dtoMap.entrySet()) {
@@ -48,7 +48,7 @@ public class Translators {
         return roots;
     }
 
-    private static @NonNull Map<String, GroupDTO> groupNameToDtoMap(List<Group> allGroups) {
+    private @NonNull Map<String, GroupDTO> groupNameToDtoMap(List<Group> allGroups) {
         Map<String, GroupDTO> dtoMap = new LinkedHashMap<>();
         for (Group group : allGroups) {
             List<ProducerDTO> producers = group.getProducers().stream()
