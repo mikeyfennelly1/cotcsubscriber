@@ -15,7 +15,7 @@ cd "${BASEDIR}"
 source "${BASEDIR}"/../.env.local
 source "${BASEDIR}"/../scripts/helpers.sh
 
-SERVICE_NAME="web-app"
+SERVICE_NAME="cotcsubscriber"
 
 ################################################
 # Wait for postgres to be healthy
@@ -35,14 +35,16 @@ while true; do
   sleep 1
 done
 
+: "${GOOGLE_APPLICATION_CREDENTIALS:?GOOGLE_APPLICATION_CREDENTIALS must be set}"
 ################################################
 # Start API
 ################################################
-var_must_exist POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB WEB_APP_PORT
+var_must_exist POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB WEB_APP_PORT GOOGLE_APPLICATION_CREDENTIALS
 echo "POSTGRES_USER=${POSTGRES_USER}"
 echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
 echo "POSTGRES_DB=${POSTGRES_DB}"
 echo "WEB_APP_PORT=${WEB_APP_PORT}"
+echo "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
 
 echo "${SERVICE_NAME}: Starting API..."
 export POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB WEB_APP_PORT
