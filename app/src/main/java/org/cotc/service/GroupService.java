@@ -77,6 +77,7 @@ public class GroupService {
         groupRepository.deleteAllDescendants(name);
         logger.debug("deleteGroup - deleted all descendants of '{}'", name);
         groupRepository.deleteByName(name);
+        groupNameCache.remove(name);
         logger.debug("deleteGroup - stream '{}' deleted successfully", name);
     }
 
@@ -124,17 +125,22 @@ public class GroupService {
 
     public GroupDTO createGroup(String groupName) throws InvalidGroupNameException, GroupAlreadyExistsException, GroupNotFoundException {
         InvalidGroupNameException.validate(groupName);
-        if(groupExists(groupName)) throw new GroupAlreadyExistsException(groupName);
-        if (!groupNameUtils.isRootName(groupName) && !groupExists(groupNameUtils.getParentName(groupName))) {
-            throw new GroupNotFoundException(groupNameUtils.getParentName(groupName));
-        }
+        if(groupExists(groupName)) {
+            logger.debug("group already exists for group: {}", groupName);
+            throw new GroupAlreadyExistsException(groupName);
+        } else {
+            if (!groupNameUtils.isRootName(groupName) && !groupExists(groupNameUtils.getParentName(groupName))) {
+                throw new GroupNotFoundException(groupNameUtils.getParentName(groupName));
+            }
 
-        Group group = new Group();
-        group.setName(groupName);
-        group.setUuid(UUID.randomUUID());
-        group.setProducers(List.of());
-        groupRepository.save(group);
-        return group.toDTO();
+            Group group = new Group();
+            group.setName(groupName);
+            group.setUuid(UUID.randomUUID());
+            group.setProducers(List.of());
+            groupRepository.save(group);
+            this.groupNameCache.add(group.getName());
+            return group.toDTO();
+        }
     }
 
     public Flux<ServerSentEvent<TimeSeriesMessageDTO>> getGroupFlux(String groupName) throws GroupNotFoundException {

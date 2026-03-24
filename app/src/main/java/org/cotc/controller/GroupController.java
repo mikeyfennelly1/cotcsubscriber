@@ -22,8 +22,10 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -34,19 +36,14 @@ public class GroupController {
 
     private static final Logger logger = LoggerFactory.getLogger(GroupController.class);
     private final TimeseriesRepository timeseriesRepository;
-    private final TimeSeriesRecordService timeSeriesRecordService;
-    private final GroupNameUtils groupNameUtils;
-    private final Translators translators;
 
     @Autowired
     public GroupController(
             TimeseriesRepository timeseriesRepository,
-            GroupService groupService, TimeSeriesRecordService timeSeriesRecordService, GroupNameUtils groupNameUtils, Translators translators) {
+            GroupService groupService
+    ) {
         this.timeseriesRepository = timeseriesRepository;
         this.groupService = groupService;
-        this.timeSeriesRecordService = timeSeriesRecordService;
-        this.groupNameUtils = groupNameUtils;
-        this.translators = translators;
     }
 
     @Operation(summary = "Health check", description = "Returns a status message confirming the groups API is running.")
@@ -116,14 +113,29 @@ public class GroupController {
                         .build()
         );
 
-        Flux<ServerSentEvent<?>> liveFlux = groupService.getGroupFlux(group)
-                .map(dto -> ServerSentEvent.<TimeSeriesMessageDTO>builder()
+        Flux<ServerSentEvent<TimeSeriesRecordDTO>> liveFlux = groupService.getGroupFlux(group)
+                .flatMap(dto -> Flux.fromIterable(splitMessageIntoRecordDTOs(dto.data())))
+                .map(record -> ServerSentEvent.<TimeSeriesRecordDTO>builder()
                         .event("update")
-                        .data(dto.data())
+                        .data(record)
                         .build()
                 );
 
+        logger.debug("opened sse connection for group {}", group);
+
         return historyFlux.concatWith(liveFlux);
+    }
+
+    private List<TimeSeriesRecordDTO> splitMessageIntoRecordDTOs(TimeSeriesMessageDTO dto) {
+        return dto.getValues().entrySet().stream()
+                .map(e -> new TimeSeriesRecordDTO(
+                        UUID.randomUUID(),
+                        e.getKey(),
+                        e.getValue().floatValue(),
+                        dto.getProducerName(),
+                        Instant.ofEpochSecond(dto.getReadTime())
+                ))
+                .collect(Collectors.toList());
     }
 
     @Operation(summary = "Get child groups", description = "Returns a list of direct child group names for the given parent group.")
