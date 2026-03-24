@@ -10,16 +10,18 @@ if [[ "$OS" == "Darwin" ]]; then
 else
 	BASEDIR=$(readlink -e "$(dirname "$0")/")
 fi
-cd "${BASEDIR}/.."
+pushd "${BASEDIR}/.."
 
 set -eou pipefail
 
-pwd
-
 ./gradlew build
-cp ./app/build/libs/app-0.0.1-SNAPSHOT.jar ./app.jar
-IMAGE_NAME="mikeyfennelly/cotcsubscriber:latest"
-docker build -t "${IMAGE_NAME}" .
+cp ./app/build/libs/*SNAPSHOT.jar ./app.jar
+VERSION=$(cat VERSION | tr -d '[:space:]')
+IMAGE_NAME="mikeyfennelly/cotcsubscriber:${VERSION}"
+docker build -t "${IMAGE_NAME}" -t "mikeyfennelly/cotcsubscriber:latest" .
 
 docker login
 docker push "${IMAGE_NAME}"
+docker push "mikeyfennelly/cotcsubscriber:latest"
+
+popd
