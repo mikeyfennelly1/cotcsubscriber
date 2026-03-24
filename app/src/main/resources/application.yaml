@@ -18,6 +18,15 @@ spring:
 server:
   port: ${WEB_APP_PORT:8081}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,loggers
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     root: INFO
